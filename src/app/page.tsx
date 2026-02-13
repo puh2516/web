@@ -1,6 +1,7 @@
 import { createClient } from '@/utils/supabase/server'
 import Feed from '@/components/Feed'
 import CreatePost from '@/components/CreatePost'
+import UserProfile from '@/components/UserProfile'
 import { redirect } from 'next/navigation'
 import { Flame, LogOut } from 'lucide-react'
 
@@ -52,14 +53,8 @@ export default async function Home() {
             </h1>
           </div>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', paddingLeft: '16px', borderLeft: '1px solid rgba(255,255,255,0.08)' }}>
-            <span style={{ fontSize: '14px', fontWeight: 500, color: 'rgba(240,240,245,0.6)' }}>@{username}</span>
-            <img
-              src={avatarUrl}
-              alt={username}
-              style={{ width: 36, height: 36, borderRadius: '50%', border: '2px solid var(--purple)', padding: 1 }}
-            />
-          </div>
+
+          <UserProfile userId={user.id} username={username} avatarUrl={avatarUrl} />
         </header>
 
         {/* ── Create Post ── */}

@@ -108,5 +108,53 @@ export async function getComments(postId: string) {
         return []
     }
 
+
     return data || []
+}
+
+export async function updateProfile(formData: FormData) {
+    const supabase = await createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+
+    if (!user) {
+        return { error: 'Unauthorized' }
+    }
+
+    const username = formData.get('username') as string
+    const avatarUrl = formData.get('avatarUrl') as string
+    const password = formData.get('password') as string
+
+    // 1. Update Supabase Auth (Password & Metadata)
+    const authUpdates: any = {
+        data: {
+            username,
+            avatar_url: avatarUrl,
+        }
+    }
+
+    if (password && password.trim().length >= 6) {
+        authUpdates.password = password
+    }
+
+    const { error: authError } = await supabase.auth.updateUser(authUpdates)
+
+    if (authError) {
+        return { error: `Auth Error: ${authError.message}` }
+    }
+
+    // 2. Update Public User Table
+    const { error: dbError } = await supabase
+        .from('techtakes_user')
+        .update({
+            username,
+            avatar_url: avatarUrl,
+        })
+        .eq('id', user.id)
+
+    if (dbError) {
+        return { error: `Database Error: ${dbError.message}` }
+    }
+
+    revalidatePath('/')
+    return { success: true }
 }
