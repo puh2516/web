@@ -69,3 +69,44 @@ export async function castVote(postId: string, voteType: 'up' | 'down') {
     revalidatePath('/')
     return { success: true }
 }
+
+export async function createComment(postId: string, content: string) {
+    const supabase = await createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return { error: 'Unauthorized' }
+
+    if (!content || content.length > 500) {
+        return { error: 'Comment must be 1-500 characters' }
+    }
+
+    const { error } = await supabase.from('techtakes_comment').insert({
+        user_id: user.id,
+        post_id: postId,
+        content,
+    })
+
+    if (error) {
+        console.error('Error creating comment:', error)
+        return { error: error.message }
+    }
+
+    revalidatePath('/')
+    return { success: true }
+}
+
+export async function getComments(postId: string) {
+    const supabase = await createClient()
+
+    const { data, error } = await supabase
+        .from('techtakes_comment')
+        .select('*, techtakes_user:user_id(username, avatar_url)')
+        .eq('post_id', postId)
+        .order('created_at', { ascending: true })
+
+    if (error) {
+        console.error('Error fetching comments:', error)
+        return []
+    }
+
+    return data || []
+}

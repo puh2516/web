@@ -1,9 +1,9 @@
 'use client'
 
-import { motion } from 'framer-motion'
-import { ThumbsUp, ThumbsDown, MessageSquare, Share2 } from 'lucide-react'
-import { castVote } from '@/app/actions'
-import { useOptimistic, startTransition } from 'react'
+import { motion, AnimatePresence } from 'framer-motion'
+import { ThumbsUp, ThumbsDown, MessageSquare, Share2, Send, Loader2 } from 'lucide-react'
+import { castVote, createComment, getComments } from '@/app/actions'
+import { useOptimistic, startTransition, useState } from 'react'
 
 function timeAgo(dateString: string) {
     const date = new Date(dateString)
@@ -17,11 +17,22 @@ function timeAgo(dateString: string) {
     return `${Math.floor(hours / 24)}d ago`
 }
 
+type Comment = {
+    id: string
+    content: string
+    created_at: string
+    techtakes_user: {
+        username: string
+        avatar_url: string
+    }
+}
+
 type Post = {
     id: string
     content: string
     score: number
     created_at: string
+    comment_count?: number
     techtakes_user: {
         username: string
         avatar_url: string
@@ -53,6 +64,48 @@ export default function PostCard({ post, currentUserId }: { post: Post, currentU
     const handleVote = async (type: 'up' | 'down') => {
         startTransition(() => { addOptimisticVote(type) })
         await castVote(post.id, type)
+    }
+
+    // ── Comments state ──
+    const [showComments, setShowComments] = useState(false)
+    const [comments, setComments] = useState<Comment[]>([])
+    const [loadingComments, setLoadingComments] = useState(false)
+    const [commentText, setCommentText] = useState('')
+    const [submittingComment, setSubmittingComment] = useState(false)
+    const [localCommentCount, setLocalCommentCount] = useState(post.comment_count || 0)
+
+    const toggleComments = async () => {
+        if (!showComments) {
+            setShowComments(true)
+            setLoadingComments(true)
+            const data = await getComments(post.id)
+            const processed = data.map((c: any) => ({
+                ...c,
+                techtakes_user: Array.isArray(c.techtakes_user) ? c.techtakes_user[0] : c.techtakes_user
+            }))
+            setComments(processed)
+            setLoadingComments(false)
+        } else {
+            setShowComments(false)
+        }
+    }
+
+    const handleSubmitComment = async () => {
+        if (!commentText.trim()) return
+        setSubmittingComment(true)
+        const result = await createComment(post.id, commentText.trim())
+        if (result && 'success' in result) {
+            // Refresh comments
+            const data = await getComments(post.id)
+            const processed = data.map((c: any) => ({
+                ...c,
+                techtakes_user: Array.isArray(c.techtakes_user) ? c.techtakes_user[0] : c.techtakes_user
+            }))
+            setComments(processed)
+            setLocalCommentCount(prev => prev + 1)
+            setCommentText('')
+        }
+        setSubmittingComment(false)
     }
 
     const isUpvoted = optimisticPost.user_vote === 'up'
@@ -153,13 +206,22 @@ export default function PostCard({ post, currentUserId }: { post: Post, currentU
                             </motion.button>
                         </div>
 
-                        {/* Secondary actions */}
+                        {/* Comment + Share buttons */}
                         <div style={{ display: 'flex', gap: '4px' }}>
-                            <button style={{ padding: '8px', color: 'rgba(240,240,245,0.3)', transition: 'color 0.2s' }}
-                                onMouseEnter={(e) => e.currentTarget.style.color = 'var(--purple)'}
-                                onMouseLeave={(e) => e.currentTarget.style.color = 'rgba(240,240,245,0.3)'}
+                            <button
+                                onClick={toggleComments}
+                                style={{
+                                    padding: '8px 12px', display: 'flex', alignItems: 'center', gap: '6px',
+                                    borderRadius: '999px', fontSize: '13px', fontWeight: 600,
+                                    transition: 'all 0.2s',
+                                    color: showComments ? 'var(--purple)' : 'rgba(240,240,245,0.3)',
+                                    background: showComments ? 'rgba(168,85,247,0.1)' : 'transparent',
+                                }}
+                                onMouseEnter={(e) => { if (!showComments) e.currentTarget.style.color = 'var(--purple)' }}
+                                onMouseLeave={(e) => { if (!showComments) e.currentTarget.style.color = 'rgba(240,240,245,0.3)' }}
                             >
                                 <MessageSquare style={{ width: 18, height: 18 }} />
+                                {localCommentCount > 0 && <span>{localCommentCount}</span>}
                             </button>
                             <button style={{ padding: '8px', color: 'rgba(240,240,245,0.3)', transition: 'color 0.2s' }}
                                 onMouseEnter={(e) => e.currentTarget.style.color = 'var(--neon-green)'}
@@ -169,6 +231,110 @@ export default function PostCard({ post, currentUserId }: { post: Post, currentU
                             </button>
                         </div>
                     </div>
+
+                    {/* ── Comments Section ── */}
+                    <AnimatePresence>
+                        {showComments && (
+                            <motion.div
+                                initial={{ opacity: 0, height: 0 }}
+                                animate={{ opacity: 1, height: 'auto' }}
+                                exit={{ opacity: 0, height: 0 }}
+                                transition={{ duration: 0.3 }}
+                                style={{ overflow: 'hidden' }}
+                            >
+                                <div style={{
+                                    marginTop: '20px', paddingTop: '20px',
+                                    borderTop: '1px solid rgba(255,255,255,0.06)'
+                                }}>
+                                    {/* Comment input */}
+                                    <div style={{
+                                        display: 'flex', gap: '10px', marginBottom: '16px',
+                                        alignItems: 'flex-end'
+                                    }}>
+                                        <input
+                                            type="text"
+                                            value={commentText}
+                                            onChange={(e) => setCommentText(e.target.value)}
+                                            onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSubmitComment() } }}
+                                            placeholder="Add a comment..."
+                                            maxLength={500}
+                                            className="input-field"
+                                            style={{ flex: 1, padding: '10px 14px', fontSize: '14px', borderRadius: '999px' }}
+                                        />
+                                        <motion.button
+                                            whileTap={{ scale: 0.9 }}
+                                            onClick={handleSubmitComment}
+                                            disabled={!commentText.trim() || submittingComment}
+                                            style={{
+                                                padding: '10px',
+                                                borderRadius: '50%',
+                                                background: commentText.trim() ? 'linear-gradient(135deg, var(--neon-green), var(--purple))' : 'rgba(255,255,255,0.05)',
+                                                color: commentText.trim() ? '#000' : 'rgba(240,240,245,0.3)',
+                                                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                                transition: 'all 0.2s',
+                                                flexShrink: 0,
+                                                cursor: commentText.trim() ? 'pointer' : 'not-allowed',
+                                                boxShadow: commentText.trim() ? '0 0 15px var(--neon-glow)' : 'none'
+                                            }}
+                                        >
+                                            {submittingComment ? (
+                                                <Loader2 className="animate-spin" style={{ width: 16, height: 16 }} />
+                                            ) : (
+                                                <Send style={{ width: 16, height: 16 }} />
+                                            )}
+                                        </motion.button>
+                                    </div>
+
+                                    {/* Comments list */}
+                                    {loadingComments ? (
+                                        <div style={{ textAlign: 'center', padding: '16px', color: 'rgba(240,240,245,0.3)' }}>
+                                            <Loader2 className="animate-spin" style={{ width: 20, height: 20, margin: '0 auto' }} />
+                                        </div>
+                                    ) : comments.length === 0 ? (
+                                        <p style={{ textAlign: 'center', fontSize: '13px', color: 'rgba(240,240,245,0.3)', padding: '12px 0' }}>
+                                            No comments yet. Start the conversation!
+                                        </p>
+                                    ) : (
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                                            {comments.map((comment) => (
+                                                <motion.div
+                                                    key={comment.id}
+                                                    initial={{ opacity: 0, x: -10 }}
+                                                    animate={{ opacity: 1, x: 0 }}
+                                                    style={{
+                                                        display: 'flex', gap: '10px',
+                                                        padding: '10px 14px',
+                                                        background: 'rgba(0,0,0,0.3)',
+                                                        borderRadius: '14px',
+                                                        border: '1px solid rgba(255,255,255,0.04)'
+                                                    }}
+                                                >
+                                                    <img
+                                                        src={comment.techtakes_user?.avatar_url || `https://api.dicebear.com/9.x/avataaars/svg?seed=${comment.techtakes_user?.username}`}
+                                                        alt={comment.techtakes_user?.username}
+                                                        style={{ width: 28, height: 28, borderRadius: '50%', flexShrink: 0 }}
+                                                    />
+                                                    <div style={{ flex: 1, minWidth: 0 }}>
+                                                        <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px', marginBottom: '2px' }}>
+                                                            <span style={{ fontWeight: 700, fontSize: '13px', color: 'var(--purple)' }}>
+                                                                @{comment.techtakes_user?.username}
+                                                            </span>
+                                                            <span style={{ fontSize: '11px', color: 'rgba(240,240,245,0.25)', fontFamily: 'monospace' }}>
+                                                                {timeAgo(comment.created_at)}
+                                                            </span>
+                                                        </div>
+                                                        <p style={{ fontSize: '14px', lineHeight: 1.5, color: 'rgba(240,240,245,0.75)', wordBreak: 'break-word' }}>
+                                                            {comment.content}
+                                                        </p>
+                                                    </div>
+                                                </motion.div>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
+                            </motion.div>
+                        )}
+                    </AnimatePresence>
                 </div>
             </div>
         </motion.div>
