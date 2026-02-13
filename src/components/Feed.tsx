@@ -1,17 +1,22 @@
 import { createClient } from '@/utils/supabase/server'
 import PostCard from './PostCard'
 
-export default async function Feed() {
+export default async function Feed({ type }: { type?: 'hot_take' | 'question' }) {
     const supabase = await createClient()
     const { data: { user } } = await supabase.auth.getUser()
 
-    const { data: posts, error } = await supabase
+    let query = supabase
         .from('techtakes_post')
         .select(`
-      *,
-      techtakes_user (username, avatar_url)
-    `)
-        .order('score', { ascending: false })
+          *,
+          techtakes_user (username, avatar_url)
+        `)
+
+    if (type) {
+        query = query.eq('type', type)
+    }
+
+    const { data: posts, error } = await query.order('score', { ascending: false })
 
     if (error) {
         console.error('Error fetching posts:', error)
@@ -42,8 +47,12 @@ export default async function Feed() {
 
     return (
         <div className="space-y-4">
-            {processedPosts.map((post) => (
-                <PostCard key={post.id} post={post} currentUserId={user?.id || ''} />
+            {processedPosts.map((post, index) => (
+                <PostCard
+                    key={post.id}
+                    post={post}
+                    isFirst={index === 0}
+                />
             ))}
             {processedPosts.length === 0 && (
                 <div className="text-center py-10 text-gray-500">

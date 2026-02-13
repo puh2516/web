@@ -1,9 +1,10 @@
 'use client'
 
+import Link from 'next/link'
 import { motion, AnimatePresence } from 'framer-motion'
 import { ThumbsUp, ThumbsDown, MessageSquare, Share2, Send, Loader2 } from 'lucide-react'
 import { castVote, createComment, getComments } from '@/app/actions'
-import { useOptimistic, startTransition, useState } from 'react'
+import { useOptimistic, startTransition, useState, useEffect } from 'react'
 
 function timeAgo(dateString: string) {
     const date = new Date(dateString)
@@ -33,6 +34,7 @@ type Post = {
     score: number
     created_at: string
     comment_count?: number
+    type?: 'hot_take' | 'question'
     techtakes_user: {
         username: string
         avatar_url: string
@@ -40,7 +42,7 @@ type Post = {
     user_vote?: 'up' | 'down' | null
 }
 
-export default function PostCard({ post, currentUserId }: { post: Post, currentUserId: string }) {
+export default function PostCard({ post, initialExpanded = false, isFirst = false }: { post: Post, initialExpanded?: boolean, isFirst?: boolean }) {
     const [optimisticPost, addOptimisticVote] = useOptimistic(
         post,
         (state, voteType: 'up' | 'down') => {
@@ -67,12 +69,29 @@ export default function PostCard({ post, currentUserId }: { post: Post, currentU
     }
 
     // ── Comments state ──
-    const [showComments, setShowComments] = useState(false)
+    const [showComments, setShowComments] = useState(initialExpanded)
     const [comments, setComments] = useState<Comment[]>([])
     const [loadingComments, setLoadingComments] = useState(false)
     const [commentText, setCommentText] = useState('')
     const [submittingComment, setSubmittingComment] = useState(false)
     const [localCommentCount, setLocalCommentCount] = useState(post.comment_count || 0)
+
+    useEffect(() => {
+        if (initialExpanded) {
+            const fetchComments = async () => {
+                setLoadingComments(true)
+                const data = await getComments(post.id)
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                const processed = data.map((c: any) => ({
+                    ...c,
+                    techtakes_user: Array.isArray(c.techtakes_user) ? c.techtakes_user[0] : c.techtakes_user
+                }))
+                setComments(processed)
+                setLoadingComments(false)
+            }
+            fetchComments()
+        }
+    }, [initialExpanded, post.id])
 
     const toggleComments = async () => {
         if (!showComments) {
@@ -111,6 +130,13 @@ export default function PostCard({ post, currentUserId }: { post: Post, currentU
     const isUpvoted = optimisticPost.user_vote === 'up'
     const isDownvoted = optimisticPost.user_vote === 'down'
 
+    // Highlight styles for the first post
+    const firstPostStyles = isFirst && !initialExpanded ? {
+        border: `1.5px solid ${post.type === 'question' ? 'var(--neon-blue)' : 'var(--neon-green)'}`,
+        boxShadow: `0 0 40px ${post.type === 'question' ? 'rgba(57, 192, 237, 0.15)' : 'rgba(57, 255, 20, 0.1)'}`,
+        background: 'rgba(18, 18, 28, 0.85)',
+    } : {}
+
     return (
         <motion.div
             layout
@@ -120,13 +146,18 @@ export default function PostCard({ post, currentUserId }: { post: Post, currentU
             className="glass-card"
             style={{
                 padding: '24px', marginBottom: '20px',
-                transition: 'box-shadow 0.3s ease',
+                transition: 'box-shadow 0.3s ease, transform 0.2s',
+                ...firstPostStyles
             }}
             onMouseEnter={(e) => {
-                e.currentTarget.style.boxShadow = '0 8px 40px rgba(168,85,247,0.15), 0 0 60px rgba(57,255,20,0.05)'
+                if (!isFirst) {
+                    e.currentTarget.style.boxShadow = '0 8px 40px rgba(168,85,247,0.15), 0 0 60px rgba(57,255,20,0.05)'
+                } else {
+                    e.currentTarget.style.boxShadow = `0 8px 50px ${post.type === 'question' ? 'rgba(57, 192, 237, 0.25)' : 'rgba(57, 255, 20, 0.25)'}`
+                }
             }}
             onMouseLeave={(e) => {
-                e.currentTarget.style.boxShadow = 'none'
+                e.currentTarget.style.boxShadow = (isFirst && !initialExpanded && firstPostStyles.boxShadow) ? firstPostStyles.boxShadow : 'none'
             }}
         >
             <div style={{ display: 'flex', gap: '16px' }}>
@@ -143,23 +174,42 @@ export default function PostCard({ post, currentUserId }: { post: Post, currentU
 
                 <div style={{ flex: 1, minWidth: 0 }}>
                     {/* Header row */}
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: '8px' }}>
-                        <span style={{ fontWeight: 700, fontSize: '16px', color: 'var(--purple)' }}>
-                            @{optimisticPost.techtakes_user?.username}
-                        </span>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <span style={{ fontWeight: 700, fontSize: '16px', color: 'var(--purple)' }}>
+                                @{optimisticPost.techtakes_user?.username}
+                            </span>
+                            {post.type === 'question' && (
+                                <span style={{
+                                    fontSize: '10px', textTransform: 'uppercase', fontWeight: 800,
+                                    padding: '2px 6px', borderRadius: '4px',
+                                    background: 'rgba(57, 192, 237, 0.2)', color: 'var(--neon-blue)',
+                                    border: '1px solid rgba(57, 192, 237, 0.4)',
+                                    letterSpacing: '0.05em'
+                                }}>
+                                    Question
+                                </span>
+                            )}
+                        </div>
                         <span style={{ fontSize: '12px', color: 'rgba(240,240,245,0.35)', fontFamily: 'monospace' }}>
                             {timeAgo(optimisticPost.created_at)}
                         </span>
                     </div>
 
                     {/* Content */}
-                    <p style={{
-                        fontSize: '18px', lineHeight: 1.6, fontWeight: 400,
-                        color: 'rgba(240,240,245,0.9)', marginBottom: '20px',
-                        wordBreak: 'break-word'
-                    }}>
-                        {optimisticPost.content}
-                    </p>
+                    <Link href={`/post/${post.id}`} style={{ textDecoration: 'none', display: 'block' }}>
+                        <p style={{
+                            fontSize: '18px', lineHeight: 1.6, fontWeight: 400,
+                            color: 'rgba(240,240,245,0.9)', marginBottom: '20px',
+                            wordBreak: 'break-word',
+                            cursor: 'pointer'
+                        }}
+                            onMouseEnter={(e) => e.currentTarget.style.color = 'white'}
+                            onMouseLeave={(e) => e.currentTarget.style.color = 'rgba(240,240,245,0.9)'}
+                        >
+                            {optimisticPost.content}
+                        </p>
+                    </Link>
 
                     {/* Actions row */}
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>

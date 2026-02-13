@@ -2,6 +2,7 @@ import { createClient } from '@/utils/supabase/server'
 import Feed from '@/components/Feed'
 import CreatePost from '@/components/CreatePost'
 import UserProfile from '@/components/UserProfile'
+import FeaturedTopics from '@/components/FeaturedTopics'
 import { redirect } from 'next/navigation'
 import { Flame, LogOut } from 'lucide-react'
 
@@ -15,6 +16,14 @@ export default async function Home() {
 
   const avatarUrl = user.user_metadata.avatar_url || `https://api.dicebear.com/9.x/avataaars/svg?seed=${user.user_metadata.username || 'user'}`
   const username = user.user_metadata.username || user.email?.split('@')[0] || 'User'
+
+  const { data: userData } = await supabase
+    .from('techtakes_user')
+    .select('is_admin')
+    .eq('id', user.id)
+    .single()
+
+  const isAdmin = userData?.is_admin || false
 
   return (
     <main style={{ minHeight: '100vh', position: 'relative' }}>
@@ -59,18 +68,32 @@ export default async function Home() {
 
         {/* ── Create Post ── */}
         <section style={{ marginBottom: '48px' }}>
-          <CreatePost />
+          <CreatePost isAdmin={isAdmin} />
         </section>
 
-        {/* ── Feed ── */}
+        {/* ── Featured Topics ── */}
+        <FeaturedTopics />
+
+        {/* ── Community Questions ── */}
+        <section style={{ marginBottom: '48px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '24px' }}>
+            <h2 style={{ fontSize: '20px', fontWeight: 800, color: 'var(--neon-blue)', whiteSpace: 'nowrap', fontFamily: "'Orbitron', sans-serif", letterSpacing: '0.05em' }}>
+              ❓ QUESTIONS
+            </h2>
+            <div style={{ height: '1px', flex: 1, background: 'linear-gradient(to right, rgba(57, 192, 237, 0.3), transparent)' }} />
+          </div>
+          <Feed type="question" />
+        </section>
+
+        {/* ── Hot Takes ── */}
         <section>
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '24px' }}>
-            <h2 style={{ fontSize: '20px', fontWeight: 700, color: 'var(--foreground)', whiteSpace: 'nowrap' }}>
-              🔥 Trending Heat
+            <h2 style={{ fontSize: '20px', fontWeight: 800, color: 'var(--neon-green)', whiteSpace: 'nowrap', fontFamily: "'Orbitron', sans-serif", letterSpacing: '0.05em' }}>
+              🔥 HOT TAKES
             </h2>
-            <div style={{ height: '1px', flex: 1, background: 'linear-gradient(to right, var(--card-border), transparent)' }} />
+            <div style={{ height: '1px', flex: 1, background: 'linear-gradient(to right, rgba(57, 255, 20, 0.2), transparent)' }} />
           </div>
-          <Feed />
+          <Feed type="hot_take" />
         </section>
       </div>
     </main>

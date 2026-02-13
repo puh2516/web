@@ -6,6 +6,7 @@ import { revalidatePath } from 'next/cache'
 export async function createPost(formData: FormData) {
     const supabase = await createClient()
     const content = formData.get('content') as string
+    const type = (formData.get('type') as string) || 'hot_take'
 
     if (!content || content.length > 280) {
         return { error: 'Invalid content length' }
@@ -14,9 +15,23 @@ export async function createPost(formData: FormData) {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return { error: 'Unauthorized' }
 
+    // If trying to post a question, verify admin status
+    if (type === 'question') {
+        const { data: userData } = await supabase
+            .from('techtakes_user')
+            .select('is_admin')
+            .eq('id', user.id)
+            .single()
+
+        if (!userData?.is_admin) {
+            return { error: 'Only admins can post questions' }
+        }
+    }
+
     const { error } = await supabase.from('techtakes_post').insert({
         user_id: user.id,
         content,
+        type,
     })
 
     if (error) {
@@ -158,3 +173,4 @@ export async function updateProfile(formData: FormData) {
     revalidatePath('/')
     return { success: true }
 }
+

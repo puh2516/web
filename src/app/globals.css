@@ -8,6 +8,8 @@
   --purple-deep: #7c3aed;
   --purple-glow: rgba(168, 85, 247, 0.4);
   --neon-glow: rgba(57, 255, 20, 0.3);
+  --neon-blue: #39c0ed;
+  --neon-blue-glow: rgba(57, 192, 237, 0.3);
 
   /* ── Surfaces ── */
   --background: #050508;
