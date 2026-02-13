@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { X, User, Image as ImageIcon, Lock, Check, Loader2 } from 'lucide-react'
+import { X, User, Image as ImageIcon, Lock, Check, Loader2, RefreshCw } from 'lucide-react'
 import { updateProfile } from '@/app/actions'
 
 interface EditProfileModalProps {
@@ -123,19 +123,34 @@ export default function EditProfileModal({
                         <label style={{ display: 'block', marginBottom: '8px', fontSize: '14px', color: 'rgba(255,255,255,0.6)' }}>
                             Avatar Image URL
                         </label>
-                        <div style={{ position: 'relative' }}>
-                            <ImageIcon size={18} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--purple)' }} />
-                            <input
-                                type="text"
-                                value={avatarUrl}
-                                onChange={(e) => setAvatarUrl(e.target.value)}
+                        <div style={{ position: 'relative', display: 'flex', gap: '8px' }}>
+                            <div style={{ position: 'relative', flex: 1 }}>
+                                <ImageIcon size={18} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--purple)' }} />
+                                <input
+                                    type="text"
+                                    value={avatarUrl}
+                                    onChange={(e) => setAvatarUrl(e.target.value)}
+                                    style={{
+                                        width: '100%', padding: '12px 12px 12px 40px', borderRadius: '8px',
+                                        background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)',
+                                        color: 'white', outline: 'none', fontSize: '15px'
+                                    }}
+                                    placeholder="https://..."
+                                />
+                            </div>
+                            <button
+                                type="button"
+                                onClick={() => setAvatarUrl(`https://api.dicebear.com/9.x/avataaars/svg?seed=${Math.random().toString(36).substring(7)}`)}
                                 style={{
-                                    width: '100%', padding: '12px 12px 12px 40px', borderRadius: '8px',
-                                    background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)',
-                                    color: 'white', outline: 'none', fontSize: '15px'
+                                    padding: '0 12px', borderRadius: '8px',
+                                    background: 'rgba(57, 255, 20, 0.1)', border: '1px solid var(--neon-green)',
+                                    color: 'var(--neon-green)', cursor: 'pointer',
+                                    display: 'flex', alignItems: 'center', justifyContent: 'center'
                                 }}
-                                placeholder="https://..."
-                            />
+                                title="Generate Random Avatar"
+                            >
+                                <RefreshCw size={18} />
+                            </button>
                         </div>
                     </div>
 
