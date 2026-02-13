@@ -2,8 +2,8 @@
 
 import Link from 'next/link'
 import { motion, AnimatePresence } from 'framer-motion'
-import { ThumbsUp, ThumbsDown, MessageSquare, Share2, Send, Loader2 } from 'lucide-react'
-import { castVote, createComment, getComments } from '@/app/actions'
+import { ThumbsUp, ThumbsDown, MessageSquare, Share2, Send, Loader2, Trash2 } from 'lucide-react'
+import { castVote, createComment, getComments, deletePost, deleteComment } from '@/app/actions'
 import { useOptimistic, startTransition, useState, useEffect } from 'react'
 
 function timeAgo(dateString: string) {
@@ -20,6 +20,7 @@ function timeAgo(dateString: string) {
 
 type Comment = {
     id: string
+    user_id: string
     content: string
     created_at: string
     techtakes_user: {
@@ -30,6 +31,7 @@ type Comment = {
 
 type Post = {
     id: string
+    user_id: string
     content: string
     score: number
     created_at: string
@@ -42,7 +44,17 @@ type Post = {
     user_vote?: 'up' | 'down' | null
 }
 
-export default function PostCard({ post, initialExpanded = false, isFirst = false }: { post: Post, initialExpanded?: boolean, isFirst?: boolean }) {
+export default function PostCard({
+    post,
+    initialExpanded = false,
+    isFirst = false,
+    currentUser
+}: {
+    post: Post,
+    initialExpanded?: boolean,
+    isFirst?: boolean,
+    currentUser?: { id: string, is_admin: boolean } | null
+}) {
     const [optimisticPost, addOptimisticVote] = useOptimistic(
         post,
         (state, voteType: 'up' | 'down') => {
@@ -127,6 +139,23 @@ export default function PostCard({ post, initialExpanded = false, isFirst = fals
         setSubmittingComment(false)
     }
 
+    const handleDeletePost = async () => {
+        if (!confirm('Are you sure you want to delete this post?')) return
+        const res = await deletePost(post.id)
+        if (res?.error) alert(res.error)
+    }
+
+    const handleDeleteComment = async (commentId: string) => {
+        if (!confirm('Are you sure you want to delete this comment?')) return
+        const res = await deleteComment(commentId)
+        if (res?.error) {
+            alert(res.error)
+        } else {
+            setComments(prev => prev.filter(c => c.id !== commentId))
+            setLocalCommentCount(prev => prev - 1)
+        }
+    }
+
     const isUpvoted = optimisticPost.user_vote === 'up'
     const isDownvoted = optimisticPost.user_vote === 'down'
 
@@ -191,9 +220,21 @@ export default function PostCard({ post, initialExpanded = false, isFirst = fals
                                 </span>
                             )}
                         </div>
-                        <span style={{ fontSize: '12px', color: 'rgba(240,240,245,0.35)', fontFamily: 'monospace' }}>
-                            {timeAgo(optimisticPost.created_at)}
-                        </span>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                            {(currentUser?.is_admin || currentUser?.id === post.user_id) && (
+                                <button
+                                    onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleDeletePost() }}
+                                    style={{ color: 'rgba(255,255,255,0.2)', transition: 'color 0.2s' }}
+                                    onMouseEnter={(e) => e.currentTarget.style.color = 'var(--error)'}
+                                    onMouseLeave={(e) => e.currentTarget.style.color = 'rgba(255,255,255,0.2)'}
+                                >
+                                    <Trash2 size={16} />
+                                </button>
+                            )}
+                            <span style={{ fontSize: '12px', color: 'rgba(240,240,245,0.35)', fontFamily: 'monospace' }}>
+                                {timeAgo(optimisticPost.created_at)}
+                            </span>
+                        </div>
                     </div>
 
                     {/* Content */}
@@ -365,13 +406,25 @@ export default function PostCard({ post, initialExpanded = false, isFirst = fals
                                                         style={{ width: 28, height: 28, borderRadius: '50%', flexShrink: 0 }}
                                                     />
                                                     <div style={{ flex: 1, minWidth: 0 }}>
-                                                        <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px', marginBottom: '2px' }}>
-                                                            <span style={{ fontWeight: 700, fontSize: '13px', color: 'var(--purple)' }}>
-                                                                @{comment.techtakes_user?.username}
-                                                            </span>
-                                                            <span style={{ fontSize: '11px', color: 'rgba(240,240,245,0.25)', fontFamily: 'monospace' }}>
-                                                                {timeAgo(comment.created_at)}
-                                                            </span>
+                                                        <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: '8px', marginBottom: '2px' }}>
+                                                            <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px' }}>
+                                                                <span style={{ fontWeight: 700, fontSize: '13px', color: 'var(--purple)' }}>
+                                                                    @{comment.techtakes_user?.username}
+                                                                </span>
+                                                                <span style={{ fontSize: '11px', color: 'rgba(240,240,245,0.25)', fontFamily: 'monospace' }}>
+                                                                    {timeAgo(comment.created_at)}
+                                                                </span>
+                                                            </div>
+                                                            {(currentUser?.is_admin || currentUser?.id === comment.user_id) && (
+                                                                <button
+                                                                    onClick={() => handleDeleteComment(comment.id)}
+                                                                    style={{ color: 'rgba(255,255,255,0.15)', transition: 'color 0.2s' }}
+                                                                    onMouseEnter={(e) => e.currentTarget.style.color = 'var(--error)'}
+                                                                    onMouseLeave={(e) => e.currentTarget.style.color = 'rgba(255,255,255,0.15)'}
+                                                                >
+                                                                    <Trash2 size={12} />
+                                                                </button>
+                                                            )}
                                                         </div>
                                                         <p style={{ fontSize: '14px', lineHeight: 1.5, color: 'rgba(240,240,245,0.75)', wordBreak: 'break-word' }}>
                                                             {comment.content}

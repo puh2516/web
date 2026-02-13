@@ -174,3 +174,75 @@ export async function updateProfile(formData: FormData) {
     return { success: true }
 }
 
+export async function deletePost(postId: string) {
+    const supabase = await createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return { error: 'Unauthorized' }
+
+    // Check if user is admin or owner
+    const { data: userData } = await supabase
+        .from('techtakes_user')
+        .select('is_admin')
+        .eq('id', user.id)
+        .single()
+
+    const { data: post } = await supabase
+        .from('techtakes_post')
+        .select('user_id')
+        .eq('id', postId)
+        .single()
+
+    if (!userData?.is_admin && post?.user_id !== user.id) {
+        return { error: 'Unauthorized to delete this post' }
+    }
+
+    const { error } = await supabase
+        .from('techtakes_post')
+        .delete()
+        .eq('id', postId)
+
+    if (error) {
+        console.error('Error deleting post:', error)
+        return { error: error.message }
+    }
+
+    revalidatePath('/')
+    return { success: true }
+}
+
+export async function deleteComment(commentId: string) {
+    const supabase = await createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return { error: 'Unauthorized' }
+
+    // Check if user is admin or owner
+    const { data: userData } = await supabase
+        .from('techtakes_user')
+        .select('is_admin')
+        .eq('id', user.id)
+        .single()
+
+    const { data: comment } = await supabase
+        .from('techtakes_comment')
+        .select('user_id')
+        .eq('id', commentId)
+        .single()
+
+    if (!userData?.is_admin && comment?.user_id !== user.id) {
+        return { error: 'Unauthorized to delete this comment' }
+    }
+
+    const { error } = await supabase
+        .from('techtakes_comment')
+        .delete()
+        .eq('id', commentId)
+
+    if (error) {
+        console.error('Error deleting comment:', error)
+        return { error: error.message }
+    }
+
+    revalidatePath('/')
+    return { success: true }
+}
+

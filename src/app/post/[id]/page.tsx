@@ -49,6 +49,17 @@ export default async function PostDetail({ params }: { params: Promise<{ id: str
         type: postType
     }
 
+    // Fetch current user info for admin/owner checks
+    let currentUserData = null
+    if (user) {
+        const { data: dbUser } = await supabase
+            .from('techtakes_user')
+            .select('id, is_admin')
+            .eq('id', user.id)
+            .single()
+        currentUserData = dbUser
+    }
+
     return (
         <main style={{ minHeight: '100vh', position: 'relative', padding: '24px' }}>
             {/* Background blobs */}
@@ -75,7 +86,7 @@ export default async function PostDetail({ params }: { params: Promise<{ id: str
                     <ArrowLeft size={16} /> Back to Feed
                 </Link>
 
-                <PostCard post={processedPost} initialExpanded={true} />
+                <PostCard post={processedPost} initialExpanded={true} currentUser={currentUserData} />
             </div>
         </main>
     )

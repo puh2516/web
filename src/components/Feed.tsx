@@ -45,6 +45,17 @@ export default async function Feed({ type }: { type?: 'hot_take' | 'question' })
         user_vote: userVotesMap[post.id] || null
     }))
 
+    // Fetch current user info if logged in
+    let currentUserData = null
+    if (user) {
+        const { data: dbUser } = await supabase
+            .from('techtakes_user')
+            .select('id, is_admin')
+            .eq('id', user.id)
+            .single()
+        currentUserData = dbUser
+    }
+
     return (
         <div className="space-y-4">
             {processedPosts.map((post, index) => (
@@ -52,6 +63,7 @@ export default async function Feed({ type }: { type?: 'hot_take' | 'question' })
                     key={post.id}
                     post={post}
                     isFirst={index === 0}
+                    currentUser={currentUserData}
                 />
             ))}
             {processedPosts.length === 0 && (
