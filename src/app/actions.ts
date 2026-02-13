@@ -246,3 +246,63 @@ export async function deleteComment(commentId: string) {
     return { success: true }
 }
 
+export async function createPoll(formData: FormData) {
+    const supabase = await createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return { error: 'Unauthorized' }
+
+    // Admin check
+    const { data: userData } = await supabase
+        .from('techtakes_user')
+        .select('is_admin')
+        .eq('id', user.id)
+        .single()
+
+    if (!userData?.is_admin) {
+        return { error: 'Only admins can create polls' }
+    }
+
+    const question = formData.get('question') as string
+    const optionsRaw = formData.get('options') as string // comma separated
+    const options = optionsRaw.split(',').map(o => o.trim()).filter(o => o !== '')
+
+    if (!question || options.length < 2) {
+        return { error: 'Poll needs a question and at least 2 options' }
+    }
+
+    // Deactivate previous active polls
+    await supabase.from('techtakes_poll').update({ is_active: false }).eq('is_active', true)
+
+    const { error } = await supabase.from('techtakes_poll').insert({
+        question,
+        options,
+        user_id: user.id,
+        is_active: true
+    })
+
+    if (error) return { error: error.message }
+
+    revalidatePath('/')
+    return { success: true }
+}
+
+export async function castPollVote(pollId: string, optionIndex: number) {
+    const supabase = await createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return { error: 'Unauthorized' }
+
+    const { error } = await supabase.from('techtakes_poll_vote').insert({
+        poll_id: pollId,
+        user_id: user.id,
+        option_index: optionIndex
+    })
+
+    if (error) {
+        if (error.code === '23505') return { error: 'You have already voted on this poll' }
+        return { error: error.message }
+    }
+
+    revalidatePath('/')
+    return { success: true }
+}
+

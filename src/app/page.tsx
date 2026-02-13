@@ -3,6 +3,9 @@ import Feed from '@/components/Feed'
 import CreatePost from '@/components/CreatePost'
 import UserProfile from '@/components/UserProfile'
 import FeaturedTopics from '@/components/FeaturedTopics'
+import FlashPoll from '@/components/FlashPoll'
+import CreatePoll from '@/components/CreatePoll'
+import Hero from '@/components/Hero'
 import { redirect } from 'next/navigation'
 import { Flame, LogOut } from 'lucide-react'
 
@@ -24,6 +27,44 @@ export default async function Home() {
     .single()
 
   const isAdmin = userData?.is_admin || false
+
+  // Fetch active poll
+  const { data: pollData } = await supabase
+    .from('techtakes_poll')
+    .select('*')
+    .eq('is_active', true)
+    .order('created_at', { ascending: false })
+    .limit(1)
+
+  let processedPoll = null
+  const activePoll = pollData?.[0]
+
+  if (activePoll) {
+    const { data: votes } = await supabase
+      .from('techtakes_poll_vote')
+      .select('option_index')
+      .eq('poll_id', activePoll.id)
+
+    const counts = (activePoll.options as string[]).map((_, idx) => ({
+      option_index: idx,
+      count: votes?.filter(v => v.option_index === idx).length || 0
+    }))
+
+    const { data: userVote } = await supabase
+      .from('techtakes_poll_vote')
+      .select('option_index')
+      .eq('poll_id', activePoll.id)
+      .eq('user_id', user.id)
+      .single()
+
+    processedPoll = {
+      id: activePoll.id,
+      question: activePoll.question,
+      options: activePoll.options as string[],
+      votes: counts,
+      user_voted_index: userVote?.option_index ?? null
+    }
+  }
 
   return (
     <main style={{ minHeight: '100vh', position: 'relative' }}>
@@ -66,6 +107,8 @@ export default async function Home() {
           <UserProfile userId={user.id} username={username} avatarUrl={avatarUrl} />
         </header>
 
+        <Hero />
+
         {/* ── Create Post ── */}
         <section style={{ marginBottom: '48px' }}>
           <CreatePost isAdmin={isAdmin} />
@@ -73,6 +116,12 @@ export default async function Home() {
 
         {/* ── Featured Topics ── */}
         <FeaturedTopics />
+
+        {/* ── Flash Poll Section ── */}
+        <section style={{ marginBottom: '48px' }}>
+          {isAdmin && <CreatePoll />}
+          {processedPoll && <FlashPoll poll={processedPoll} userId={user.id} />}
+        </section>
 
         {/* ── Community Questions ── */}
         <section style={{ marginBottom: '48px' }}>
