@@ -16,11 +16,8 @@ export default function CreatePoll() {
         if (!question || !options) return
         setIsSubmitting(true)
 
-        const formData = new FormData()
-        formData.append('question', question)
-        formData.append('options', options)
-
-        const res = await createPoll(formData)
+        const optionsArray = options.split(',').map(o => o.trim()).filter(o => o !== '')
+        const res = await createPoll(question, optionsArray)
         if (res?.error) {
             alert(res.error)
         } else {

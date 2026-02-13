@@ -246,44 +246,65 @@ export async function deleteComment(commentId: string) {
     return { success: true }
 }
 
-export async function createPoll(formData: FormData) {
-    const supabase = await createClient()
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return { error: 'Unauthorized' }
+export async function createPoll(question: string, options: string[]) {
+    try {
+        console.log('--- Creating Poll ---')
+        const supabase = await createClient()
+        const { data: { user } } = await supabase.auth.getUser()
+        if (!user) return { error: 'Unauthorized' }
 
-    // Admin check
-    const { data: userData } = await supabase
-        .from('techtakes_user')
-        .select('is_admin')
-        .eq('id', user.id)
-        .single()
+        // Admin check
+        const { data: userData } = await supabase
+            .from('techtakes_user')
+            .select('is_admin')
+            .eq('id', user.id)
+            .single()
 
-    if (!userData?.is_admin) {
-        return { error: 'Only admins can create polls' }
+        console.log('Admin check result:', userData?.is_admin)
+
+        if (!userData?.is_admin) {
+            return { error: 'Only admins can create polls' }
+        }
+
+        console.log('Question:', question)
+        console.log('Options:', options)
+
+        if (!question || options.length < 2) {
+            return { error: 'Poll needs a question and at least 2 options' }
+        }
+
+        // Deactivate previous active polls
+        console.log('Deactivating previous polls...')
+        const { error: deactivateError } = await supabase
+            .from('techtakes_poll')
+            .update({ is_active: false })
+            .eq('is_active', true)
+
+        if (deactivateError) {
+            console.error('Error deactivating polls:', deactivateError)
+            return { error: 'Failed to deactivate previous polls' }
+        }
+
+        console.log('Inserting new poll...')
+        const { error } = await supabase.from('techtakes_poll').insert({
+            question,
+            options,
+            user_id: user.id,
+            is_active: true
+        })
+
+        if (error) {
+            console.error('Insert error:', error)
+            return { error: error.message }
+        }
+
+        console.log('Success! Revalidating...')
+        revalidatePath('/')
+        return { success: true }
+    } catch (err: any) {
+        console.error('Fatal error in createPoll:', err)
+        return { error: err.message || 'An internal error occurred' }
     }
-
-    const question = formData.get('question') as string
-    const optionsRaw = formData.get('options') as string // comma separated
-    const options = optionsRaw.split(',').map(o => o.trim()).filter(o => o !== '')
-
-    if (!question || options.length < 2) {
-        return { error: 'Poll needs a question and at least 2 options' }
-    }
-
-    // Deactivate previous active polls
-    await supabase.from('techtakes_poll').update({ is_active: false }).eq('is_active', true)
-
-    const { error } = await supabase.from('techtakes_poll').insert({
-        question,
-        options,
-        user_id: user.id,
-        is_active: true
-    })
-
-    if (error) return { error: error.message }
-
-    revalidatePath('/')
-    return { success: true }
 }
 
 export async function castPollVote(pollId: string, optionIndex: number) {
